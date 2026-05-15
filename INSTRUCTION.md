@@ -52,3 +52,4 @@ FinAgent is a specialized AI agent designed for investment professionals to stre
 | 2026-05-14 | Stability Improvements | Added backend API catch-alls and improved overall error resilience. |
 | 2026-05-15 | Peer Comparison & Cross Analysis | Added competitor market comparison with industry averages and a cross-source investment signal section to combine report fundamentals with real-time market data. |
 | 2026-05-15 | Valuation Verdict Synthesis | Added an AI-synthesized valuation verdict box that cross-references valuation multiples, analyst targets, dividends, and the mathematically calculated DCF model. |
+| 2026-05-16 | Production Server Build Fix | Switched the server build output to ESM and made `npm start` run in production mode so `import.meta.url` remains valid and the built server does not start Vite middleware. |
