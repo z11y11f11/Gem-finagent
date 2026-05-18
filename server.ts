@@ -15,7 +15,7 @@ const yahooFinance = new YahooFinance();
 dotenv.config();
 
 const app = express();
-const PORT = 3000;
+const PORT = Number(process.env.PORT) || 3030;
 
 // Setup Multer for PDF uploads (memory storage)
 const upload = multer({ storage: multer.memoryStorage() });
@@ -176,7 +176,7 @@ async function startServer() {
   }
 
   app.listen(PORT, "0.0.0.0", () => {
-    console.log(`FinAgent server running at http://localhost:${PORT}`);
+    console.log(`f i n te ch server running at http://localhost:${PORT}`);
   });
 }
 

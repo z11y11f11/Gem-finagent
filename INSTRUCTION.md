@@ -30,6 +30,29 @@ FinAgent is a specialized AI agent designed for investment professionals to stre
 - **Security**: API keys are strictly server-side.
 - **Auditability**: Maintain a detailed changelog in this file.
 
+## Permanent Build Rule: Server Must Stay ESM
+
+`server.ts` uses ESM-only metadata through `import.meta.url`:
+
+```ts
+const require = createRequire(import.meta.url);
+```
+
+Do **not** bundle the Express server as CommonJS. CJS output makes `import.meta` unavailable/empty, which can turn `createRequire(import.meta.url)` into `createRequire(undefined)` and cause this production error:
+
+```text
+TypeError [ERR_INVALID_ARG_VALUE]: The argument 'filename' must be a file URL object, file URL string, or absolute path string. Received undefined
+```
+
+The production server build must remain:
+
+```json
+"build": "vite build && esbuild server.ts --bundle --platform=node --format=esm --packages=external --sourcemap --outfile=dist/server.mjs",
+"start": "NODE_ENV=production node dist/server.mjs"
+```
+
+If PM2 is used, start the app through `npm start` or `dist/server.mjs`; never point PM2 at `server.ts` or `dist/server.cjs`.
+
 ## File Structure (Planned)
 - `/src/components`: UI components (Charts, Analysis Views, Uploaders).
 - `/src/services`: Client-side service implementations.
@@ -53,3 +76,4 @@ FinAgent is a specialized AI agent designed for investment professionals to stre
 | 2026-05-15 | Peer Comparison & Cross Analysis | Added competitor market comparison with industry averages and a cross-source investment signal section to combine report fundamentals with real-time market data. |
 | 2026-05-15 | Valuation Verdict Synthesis | Added an AI-synthesized valuation verdict box that cross-references valuation multiples, analyst targets, dividends, and the mathematically calculated DCF model. |
 | 2026-05-16 | Production Server Build Fix | Switched the server build output to ESM and made `npm start` run in production mode so `import.meta.url` remains valid and the built server does not start Vite middleware. |
+| 2026-05-18 | Permanent ESM Server Build Rule | Documented that the Express server must always build as ESM to preserve `import.meta.url` and avoid recurring `createRequire(undefined)` production failures. |
