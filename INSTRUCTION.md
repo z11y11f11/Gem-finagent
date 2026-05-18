@@ -53,6 +53,50 @@ The production server build must remain:
 
 If PM2 is used, start the app through `npm start` or `dist/server.mjs`; never point PM2 at `server.ts` or `dist/server.cjs`.
 
+## Lobster Trap Integration Notes
+
+Final working architecture:
+
+```text
+Browser -> /api/ai/structured -> Express backend -> LOBSTER_TRAP_URL -> OpenAI-compatible chat completions
+```
+
+The first attempt routed browser-side OpenAI SDK requests directly to `http://localhost:8080/v1`. That did not show in Lobster Trap reliably because browser CORS/preflight can block or hide the request path, and the app could silently fall back to Gemini.
+
+The second attempt used the backend gateway but called the OpenAI Responses API (`/v1/responses`). The request returned successfully, but Lobster Trap statistics still did not update because its dashboard/prompt inspection path tracks chat-completions-style traffic more reliably.
+
+The final successful fix is:
+
+- Frontend AI code calls local `/api/ai/structured` when `LOBSTER_TRAP_URL` is set.
+- Express handles that route server-side, so there is no browser CORS issue.
+- Express sends the prompt to `openai.chat.completions.create(...)`.
+- The OpenAI client uses `baseURL: process.env.LOBSTER_TRAP_URL`.
+- This sends traffic to `/v1/chat/completions`, which Lobster Trap records in Live Feed and Statistics.
+
+To verify:
+
+1. Set `.env`:
+
+```env
+OPENAI_API_KEY="..."
+LOBSTER_TRAP_URL="http://localhost:8080/v1"
+```
+
+2. Start Lobster Trap and open:
+
+```text
+http://localhost:8080/_lobstertrap/
+```
+
+3. Start this app and trigger any AI analysis.
+4. The server log should show:
+
+```text
+Server routing OpenAI via Lobster Trap
+```
+
+5. Lobster Trap Live Feed / Statistics should update in real time.
+
 ## File Structure (Planned)
 - `/src/components`: UI components (Charts, Analysis Views, Uploaders).
 - `/src/services`: Client-side service implementations.
@@ -77,3 +121,4 @@ If PM2 is used, start the app through `npm start` or `dist/server.mjs`; never po
 | 2026-05-15 | Valuation Verdict Synthesis | Added an AI-synthesized valuation verdict box that cross-references valuation multiples, analyst targets, dividends, and the mathematically calculated DCF model. |
 | 2026-05-16 | Production Server Build Fix | Switched the server build output to ESM and made `npm start` run in production mode so `import.meta.url` remains valid and the built server does not start Vite middleware. |
 | 2026-05-18 | Permanent ESM Server Build Rule | Documented that the Express server must always build as ESM to preserve `import.meta.url` and avoid recurring `createRequire(undefined)` production failures. |
+| 2026-05-18 | Lobster Trap Proxy Support | Added optional `LOBSTER_TRAP_URL` support and a server-side OpenAI-compatible gateway so Lobster Trap can inspect LLM calls without browser CORS blocking. |

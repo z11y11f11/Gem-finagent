@@ -47,7 +47,7 @@ export default function App() {
             <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white">
               <Shield className="w-5 h-5" />
             </div>
-            <span className="text-xl font-bold font-display tracking-tight text-slate-900">f i n te ch</span>
+            <span className="text-xl font-bold font-display tracking-tight text-slate-900">fintech</span>
           </div>
 
           <nav className="space-y-1">

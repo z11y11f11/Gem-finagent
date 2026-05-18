@@ -24,10 +24,15 @@ function getGeminiAI() {
 function getOpenAI() {
   if (!openAIInstance) {
     const apiKey = process.env.OPENAI_API_KEY;
+    const lobsterTrapUrl = process.env.LOBSTER_TRAP_URL;
     if (!apiKey) {
       throw new Error("OpenAI API key not configured");
     }
-    openAIInstance = new OpenAI({ apiKey, dangerouslyAllowBrowser: true });
+    openAIInstance = new OpenAI({
+      apiKey,
+      baseURL: lobsterTrapUrl || undefined,
+      dangerouslyAllowBrowser: true
+    });
   }
   return openAIInstance;
 }
@@ -38,6 +43,10 @@ function hasGeminiKey() {
 
 function hasOpenAIKey() {
   return Boolean(process.env.OPENAI_API_KEY);
+}
+
+function shouldUseLobsterTrap() {
+  return Boolean(process.env.LOBSTER_TRAP_URL);
 }
 
 function isAuthError(error: any) {
@@ -78,7 +87,64 @@ function toJsonSchema(schema: any): any {
   return jsonSchema;
 }
 
+async function generateWithOpenAI(prompt: string, responseSchema: any, schemaName: string): Promise<string> {
+  console.log(process.env.LOBSTER_TRAP_URL ? "Using OpenAI via Lobster Trap proxy" : "Using OpenAI for structured analysis");
+  if (process.env.LOBSTER_TRAP_URL) {
+    const response = await fetch("/api/ai/structured", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        prompt,
+        schemaName,
+        schema: toJsonSchema(responseSchema)
+      })
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Local AI gateway failed: ${response.status} ${errorText}`);
+    }
+
+    const result = await response.json();
+    if (!result.outputText) {
+      throw new Error("Empty response from local AI gateway");
+    }
+    return result.outputText;
+  }
+
+  const openai = getOpenAI();
+  const response = await openai.responses.create({
+    model: "gpt-5.4-mini",
+    input: prompt,
+    text: {
+      format: {
+        type: "json_schema",
+        name: schemaName,
+        schema: toJsonSchema(responseSchema),
+        strict: false
+      }
+    }
+  });
+
+  const analysisText = response.output_text;
+  if (!analysisText) {
+    throw new Error("Empty response from OpenAI");
+  }
+  return analysisText;
+}
+
 async function generateStructuredJSON(prompt: string, responseSchema: any, schemaName: string): Promise<string> {
+  if (shouldUseLobsterTrap() && hasOpenAIKey()) {
+    try {
+      return await generateWithOpenAI(prompt, responseSchema, schemaName);
+    } catch (error) {
+      if (!hasGeminiKey()) {
+        throw error;
+      }
+      console.warn("Lobster Trap/OpenAI request failed; falling back to Gemini.", error);
+    }
+  }
+
   if (hasGeminiKey()) {
     try {
       console.log("Using Gemini for structured analysis");
@@ -106,26 +172,7 @@ async function generateStructuredJSON(prompt: string, responseSchema: any, schem
   }
 
   if (hasOpenAIKey()) {
-    console.log("Using OpenAI for structured analysis");
-    const openai = getOpenAI();
-    const response = await openai.responses.create({
-      model: "gpt-5.4-mini",
-      input: prompt,
-      text: {
-        format: {
-          type: "json_schema",
-          name: schemaName,
-          schema: toJsonSchema(responseSchema),
-          strict: false
-        }
-      }
-    });
-
-    const analysisText = response.output_text;
-    if (!analysisText) {
-      throw new Error("Empty response from OpenAI");
-    }
-    return analysisText;
+    return generateWithOpenAI(prompt, responseSchema, schemaName);
   }
 
   throw new Error("API认证失败，请配置 GEMINI_API_KEY 或 OPENAI_API_KEY");

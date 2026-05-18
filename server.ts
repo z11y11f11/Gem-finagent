@@ -9,6 +9,7 @@ import { createServer as createViteServer } from "vite";
 import cors from "cors";
 import YahooFinance from "yahoo-finance2";
 import dotenv from "dotenv";
+import OpenAI from "openai";
 
 const yahooFinance = new YahooFinance();
 
@@ -16,6 +17,21 @@ dotenv.config();
 
 const app = express();
 const PORT = Number(process.env.PORT) || 3030;
+let openAIProxyInstance: OpenAI | null = null;
+
+function getOpenAIProxy() {
+  if (!openAIProxyInstance) {
+    const apiKey = process.env.OPENAI_API_KEY;
+    if (!apiKey) {
+      throw new Error("OpenAI API key not configured");
+    }
+    openAIProxyInstance = new OpenAI({
+      apiKey,
+      baseURL: process.env.LOBSTER_TRAP_URL || undefined,
+    });
+  }
+  return openAIProxyInstance;
+}
 
 // Setup Multer for PDF uploads (memory storage)
 const upload = multer({ storage: multer.memoryStorage() });
@@ -27,6 +43,41 @@ async function startServer() {
   // API Route: Health Check
   app.get("/api/health", (req, res) => {
     res.json({ status: "ok", version: "v1" });
+  });
+
+  // API Route: Server-side OpenAI-compatible structured generation.
+  // This avoids browser CORS issues when routing through Lobster Trap.
+  app.post("/api/ai/structured", async (req, res) => {
+    try {
+      const { prompt, schemaName, schema } = req.body || {};
+      if (!prompt || !schemaName || !schema) {
+        return res.status(400).json({ error: "Missing prompt, schemaName, or schema" });
+      }
+
+      console.log(process.env.LOBSTER_TRAP_URL ? "Server routing OpenAI via Lobster Trap" : "Server routing OpenAI directly");
+      const openai = getOpenAIProxy();
+      const response = await openai.chat.completions.create({
+        model: "gpt-5.4-mini",
+        messages: [{ role: "user", content: prompt }],
+        response_format: {
+          type: "json_schema",
+          json_schema: {
+            name: schemaName,
+            schema,
+            strict: false
+          }
+        }
+      });
+
+      const outputText = response.choices[0]?.message?.content;
+      if (!outputText) {
+        return res.status(502).json({ error: "Empty response from OpenAI-compatible provider" });
+      }
+      res.json({ outputText });
+    } catch (error: any) {
+      console.error("AI structured generation failed:", error);
+      res.status(500).json({ error: "AI structured generation failed", message: error.message });
+    }
   });
 
   // API Route: Stock Price
@@ -176,7 +227,7 @@ async function startServer() {
   }
 
   app.listen(PORT, "0.0.0.0", () => {
-    console.log(`f i n te ch server running at http://localhost:${PORT}`);
+    console.log(`fintech server running at http://localhost:${PORT}`);
   });
 }
 
