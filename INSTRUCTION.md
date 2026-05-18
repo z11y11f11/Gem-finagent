@@ -122,3 +122,4 @@ Server routing OpenAI via Lobster Trap
 | 2026-05-16 | Production Server Build Fix | Switched the server build output to ESM and made `npm start` run in production mode so `import.meta.url` remains valid and the built server does not start Vite middleware. |
 | 2026-05-18 | Permanent ESM Server Build Rule | Documented that the Express server must always build as ESM to preserve `import.meta.url` and avoid recurring `createRequire(undefined)` production failures. |
 | 2026-05-18 | Lobster Trap Proxy Support | Added optional `LOBSTER_TRAP_URL` support and a server-side OpenAI-compatible gateway so Lobster Trap can inspect LLM calls without browser CORS blocking. |
+| 2026-05-19 | README Refresh | Replaced the default AI Studio README with a FinAgent-specific project overview, setup guide, Lobster Trap notes, and production run guidance for GitHub. |
